@@ -13,6 +13,10 @@ auto Trie::Get(std::string_view key) const -> const T * {
   // nullptr. After you find the node, you should use `dynamic_cast` to cast it to `const TrieNodeWithValue<T> *`. If
   // dynamic_cast returns `nullptr`, it means the type of the value is mismatched, and you should return nullptr.
   // Otherwise, return the value.
+  if (root_ == nullptr) {
+    return nullptr;
+  }
+
   std::shared_ptr<const TrieNode> cur_node = root_;
   for (auto &ch : key) {
     auto pair = cur_node->children_.find(ch);
@@ -72,10 +76,50 @@ auto Trie::Put(std::string_view key, T value) const -> Trie {
 }
 
 auto Trie::Remove(std::string_view key) const -> Trie {
-  throw NotImplementedException("Trie::Remove is not implemented.");
+  // throw NotImplementedException("Trie::Remove is not implemented.");
 
   // You should walk through the trie and remove nodes if necessary. If the node doesn't contain a value any more,
   // you should convert it to `TrieNode`. If a node doesn't have children any more, you should remove it.
+  std::shared_ptr<const TrieNode> cur_node = root_;
+  std::stack<std::shared_ptr<const TrieNode>> node_stack;
+
+  size_t idx = 0;
+  for (; cur_node && idx < key.size(); ++idx) {
+    node_stack.push(cur_node);
+    auto pair = cur_node->children_.find(key[idx]);
+    cur_node = pair == cur_node->children_.end() ? nullptr : pair->second;
+  }
+
+  std::shared_ptr<const TrieNode> child_node = std::shared_ptr<const TrieNode>(cur_node->Clone());
+
+  if (idx == 0) {
+    child_node = std::make_shared<const TrieNode>(cur_node->children_);
+  }
+
+  if (!node_stack.empty()) {
+    auto &&parent_node = std::shared_ptr<TrieNode>(node_stack.top()->Clone());
+    if (child_node->children_.empty()) {
+      parent_node->children_.erase(key[--idx]);
+    } else {
+      child_node = std::make_shared<const TrieNode>(child_node->children_);
+      parent_node->children_[key[--idx]] = child_node;
+    }
+    child_node = parent_node;
+    node_stack.pop();
+  }
+
+  while (!node_stack.empty()) {
+    auto &&parent_node = std::shared_ptr<TrieNode>(node_stack.top()->Clone());
+    if (!child_node->is_value_node_ && child_node->children_.empty()) {
+      parent_node->children_.erase(key[--idx]);
+    } else {
+      parent_node->children_[key[--idx]] = child_node;
+    }
+    child_node = parent_node;
+    node_stack.pop();
+  }
+
+  return Trie(child_node->children_.empty() ? nullptr : child_node);
 }
 
 // Below are explicit instantiation of template functions.
