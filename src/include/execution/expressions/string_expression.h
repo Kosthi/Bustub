@@ -40,13 +40,29 @@ class StringExpression : public AbstractExpression {
   StringExpression(AbstractExpressionRef arg, StringExpressionType expr_type)
       : AbstractExpression({std::move(arg)}, TypeId::VARCHAR), expr_type_{expr_type} {
     if (GetChildAt(0)->GetReturnType() != TypeId::VARCHAR) {
-      throw bustub::NotImplementedException("expect the first arg to be varchar");
+      throw ExecutionException("StringExpression: Expect the first arg to be varchar.");
     }
   }
 
   auto Compute(const std::string &val) const -> std::string {
     // TODO(student): implement upper / lower.
-    return {};
+    std::string res = val;
+    if (expr_type_ == StringExpressionType::Lower) {
+      for (auto &&ch : res) {
+        if ((isalpha(ch) != 0) && (isupper(ch) != 0)) {
+          ch += 32;
+        }
+      }
+    } else if (expr_type_ == StringExpressionType::Upper) {
+      for (auto &ch : res) {
+        if ((isalpha(ch) != 0) && (islower(ch) != 0)) {
+          ch -= 32;
+        }
+      }
+    } else {
+      throw Exception(ExceptionType::UNKNOWN_TYPE, fmt::format("StringExpression: Unsupported type {}.", expr_type_));
+    }
+    return res;
   }
 
   auto Evaluate(const Tuple *tuple, const Schema &schema) const -> Value override {
