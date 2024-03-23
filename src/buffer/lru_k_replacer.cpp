@@ -20,38 +20,32 @@ LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_fra
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
   std::lock_guard<std::mutex> lock(latch_);
 
-  frame_id_t fid1;
-  frame_id_t fid2;
-  size_t min_time_stamp1 = 0xffffff;
-  size_t min_time_stamp2 = 0xffffff;
+  frame_id_t fid = -1;
+  size_t min_time_stamp1 = std::numeric_limits<size_t>::max();
+  size_t min_time_stamp2 = std::numeric_limits<size_t>::max();
 
-  for (auto &it : node_store_) {
-    auto &node = it.second;
+  for (auto &&it : node_store_) {
+    auto &&node = it.second;
     if (node.is_evictable_) {
       if (node.history_.size() < k_ && node.history_.front() < min_time_stamp1) {
         min_time_stamp1 = node.history_.front();
-        fid1 = it.first;
+        fid = it.first;
+        min_time_stamp2 = 0;
       } else if (node.history_.size() == k_ && node.history_.front() < min_time_stamp2) {
         min_time_stamp2 = node.history_.front();
-        fid2 = it.first;
+        fid = it.first;
       }
     }
   }
 
-  if (min_time_stamp1 != 0xffffff) {
-    --curr_size_;
-    node_store_.erase(fid1);
-    *frame_id = fid1;
-    return true;
-  }
-  if (min_time_stamp2 != 0xffffff) {
-    --curr_size_;
-    node_store_.erase(fid2);
-    *frame_id = fid2;
-    return true;
+  if (fid == -1) {
+    return false;
   }
 
-  return false;
+  --curr_size_;
+  node_store_.erase(fid);
+  *frame_id = fid;
+  return true;
 }
 
 void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType access_type) {
@@ -61,20 +55,20 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] AccessType
     throw ExecutionException("[LRUKReplacer] The frame id is invalid when calling RecordAccess function.");
   }
 
-  auto it = node_store_.find(frame_id);
+  auto &&it = node_store_.find(frame_id);
   if (it == node_store_.end()) {
     it = node_store_.emplace(frame_id, LRUKNode()).first;
   }
   if (it->second.history_.size() == k_) {
-    it->second.history_.pop_back();
+    it->second.history_.pop_front();
   }
-  it->second.history_.emplace_front(current_timestamp_++);
+  it->second.history_.emplace_back(current_timestamp_++);
 }
 
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
   std::lock_guard<std::mutex> lock(latch_);
 
-  auto it = node_store_.find(frame_id);
+  auto &&it = node_store_.find(frame_id);
   if (it == node_store_.end()) {
     throw ExecutionException("[LRUKReplacer] The frame id is invalid when calling SetEvictable function.");
   }
@@ -89,7 +83,7 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
 void LRUKReplacer::Remove(frame_id_t frame_id) {
   std::lock_guard<std::mutex> lock(latch_);
 
-  auto it = node_store_.find(frame_id);
+  auto &&it = node_store_.find(frame_id);
   if (it == node_store_.end()) {
     return;
   }
