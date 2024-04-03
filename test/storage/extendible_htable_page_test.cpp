@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <memory>
+#include <random>
 #include <thread>  // NOLINT
 #include <vector>
 
@@ -29,7 +30,7 @@
 namespace bustub {
 
 // NOLINTNEXTLINE
-TEST(ExtendibleHTableTest, DISABLED_BucketPageSampleTest) {
+TEST(ExtendibleHTableTest, BucketPageSampleTest) {
   auto disk_mgr = std::make_unique<DiskManagerUnlimitedMemory>();
   auto bpm = std::make_unique<BufferPoolManager>(5, disk_mgr.get());
 
@@ -44,12 +45,30 @@ TEST(ExtendibleHTableTest, DISABLED_BucketPageSampleTest) {
     GenericKey<8> index_key;
     RID rid;
 
-    // insert a few (key, value) pairs
-    for (int64_t i = 0; i < 10; i++) {
+    // 创建一个存有0-9的向量
+    std::vector<int> nums = {0, 2, 7, 1, 8, 4, 5, 6, 9, 3};
+
+    // 创建随机数引擎
+    std::random_device rd;
+    std::mt19937 g(rd());
+
+    // 打乱向量
+    std::shuffle(nums.begin(), nums.end(), g);
+
+    // 打印出乱序的向量
+    for (int i : nums) {
+      printf("%d ", i);
       index_key.SetFromInteger(i);
       rid.Set(i, i);
       ASSERT_TRUE(bucket_page->Insert(index_key, rid, comparator));
     }
+
+    // insert a few (key, value) pairs
+    //    for (int64_t i = 0; i < 10; i++) {
+    //      index_key.SetFromInteger(i);
+    //      rid.Set(i, i);
+    //      ASSERT_TRUE(bucket_page->Insert(index_key, rid, comparator));
+    //    }
 
     index_key.SetFromInteger(11);
     rid.Set(11, 11);
@@ -87,7 +106,7 @@ TEST(ExtendibleHTableTest, DISABLED_BucketPageSampleTest) {
 }
 
 // NOLINTNEXTLINE
-TEST(ExtendibleHTableTest, DISABLED_HeaderDirectoryPageSampleTest) {
+TEST(ExtendibleHTableTest, HeaderDirectoryPageSampleTest) {
   auto disk_mgr = std::make_unique<DiskManagerUnlimitedMemory>();
   auto bpm = std::make_unique<BufferPoolManager>(5, disk_mgr.get());
 
