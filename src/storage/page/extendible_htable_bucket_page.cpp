@@ -27,6 +27,10 @@ void ExtendibleHTableBucketPage<K, V, KC>::Init(uint32_t max_size) {
 
 template <typename K, typename V, typename KC>
 auto ExtendibleHTableBucketPage<K, V, KC>::Lookup(const K &key, V &value, const KC &cmp) const -> bool {
+  if (size_ == 0) {
+    return false;
+  }
+
   // binary search
   uint32_t l = 0;
   uint32_t r = size_ - 1;
@@ -77,7 +81,7 @@ auto ExtendibleHTableBucketPage<K, V, KC>::Insert(const K &key, const V &value, 
     ++l;
   }
 
-  for (auto i = size_ + 1; i > l; --i) {
+  for (auto i = size_; i < max_size_ && i > l; --i) {
     array_[i] = array_[i - 1];
   }
 
