@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "execution/executors/seq_scan_executor.h"
+#include "execution/expressions/comparison_expression.h"
 
 namespace bustub {
 
@@ -31,6 +32,13 @@ auto SeqScanExecutor::Next(Tuple *tuple, RID *rid) -> bool {
   while (!it.IsEnd()) {
     auto &&[meta, to_tuple] = it.GetTuple();
     if (!meta.is_deleted_) {
+      if (plan_->filter_predicate_ != nullptr) {
+        auto &&value = plan_->filter_predicate_->Evaluate(&to_tuple, plan_->OutputSchema());
+        if (value.GetTypeId() == TypeId::BOOLEAN && value.GetAs<uint8_t>() == 0) {
+          ++it;
+          continue;
+        }
+      }
       *tuple = std::move(to_tuple);
       *rid = it.GetRID();
       ++it;
