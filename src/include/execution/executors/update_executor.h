@@ -66,5 +66,6 @@ class UpdateExecutor : public AbstractExecutor {
 
   /** The child executor to obtain value from */
   std::unique_ptr<AbstractExecutor> child_executor_;
+  int updated_{0};
 };
 }  // namespace bustub

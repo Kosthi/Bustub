@@ -38,11 +38,7 @@ auto InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
 
   std::vector<Value> value;
   value.emplace_back(INTEGER, inserted_);
-  Column column = Column("out", INTEGER);
-  std::vector<Column> columns;
-  columns.emplace_back(column);
-  Schema schema(columns);
-  *tuple = Tuple(value, &schema);
+  *tuple = Tuple(std::move(value), &GetOutputSchema());
   inserted_ = -1;
   return true;
 }
