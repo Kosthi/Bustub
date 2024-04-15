@@ -20,6 +20,9 @@ auto Optimizer::OptimizeSeqScanAsIndexScan(const bustub::AbstractPlanNodeRef &pl
   if (optimized_plan->GetType() == PlanType::SeqScan) {
     try {
       const auto &seq_scan_plan = dynamic_cast<const SeqScanPlanNode &>(*optimized_plan);
+      if (seq_scan_plan.filter_predicate_ == nullptr) {
+        return optimized_plan;
+      }
       const auto &comparison_expression = dynamic_cast<const ComparisonExpression &>(*seq_scan_plan.filter_predicate_);
       if (comparison_expression.comp_type_ == ComparisonType::Equal) {
         auto &lcol = comparison_expression.GetChildAt(0);
