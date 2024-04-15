@@ -22,6 +22,7 @@ InsertExecutor::InsertExecutor(ExecutorContext *exec_ctx, const InsertPlanNode *
   auto &&catalog = exec_ctx->GetCatalog();
   auto &&table_info = catalog->GetTable(plan_->table_oid_);
   table_heap_ = table_info->table_.get();
+  index_info_ = catalog->GetTableIndexes(table_info->name_);
 }
 
 void InsertExecutor::Init() { child_executor_->Init(); }
@@ -32,7 +33,13 @@ auto InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
   }
 
   while (child_executor_->Next(tuple, rid)) {
-    table_heap_->InsertTuple({0, false}, *tuple);
+    *rid = *table_heap_->InsertTuple({0, false}, *tuple);
+    for (auto &index_info : index_info_) {
+      // 单键索引
+      auto &&tuple_tmp = tuple->KeyFromTuple(child_executor_->GetOutputSchema(), index_info->key_schema_,
+                                             index_info->index_->GetKeyAttrs());
+      index_info->index_->InsertEntry(tuple_tmp, *rid, exec_ctx_->GetTransaction());
+    }
     ++inserted_;
   }
 

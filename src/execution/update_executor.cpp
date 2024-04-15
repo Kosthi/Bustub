@@ -21,6 +21,7 @@ UpdateExecutor::UpdateExecutor(ExecutorContext *exec_ctx, const UpdatePlanNode *
   auto &&catalog = exec_ctx->GetCatalog();
   auto &&table_info = catalog->GetTable(plan_->table_oid_);
   table_info_ = table_info;
+  index_info_ = catalog->GetTableIndexes(table_info_->name_);
   // As of Fall 2022, you DON'T need to implement update executor to have perfect score in project 3 / project 4.
 }
 
@@ -38,6 +39,14 @@ auto UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
     tuple_meta.is_deleted_ = true;
     table_heap->UpdateTupleMeta(tuple_meta, *rid);
 
+    // 删除索引
+    for (auto &index_info : index_info_) {
+      // 单键索引
+      auto &&tuple_tmp = tuple->KeyFromTuple(child_executor_->GetOutputSchema(), index_info->key_schema_,
+                                             index_info->index_->GetKeyAttrs());
+      index_info->index_->DeleteEntry(tuple_tmp, *rid, exec_ctx_->GetTransaction());
+    }
+
     // 创建新元组
     std::vector<Value> values{};
     values.reserve(child_executor_->GetOutputSchema().GetColumnCount());
@@ -49,6 +58,15 @@ auto UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
 
     // 插入
     *rid = *table_heap->InsertTuple({0, false}, *tuple);
+
+    // 新建索引
+    for (auto &index_info : index_info_) {
+      // 单键索引
+      auto &&tuple_tmp = tuple->KeyFromTuple(child_executor_->GetOutputSchema(), index_info->key_schema_,
+                                             index_info->index_->GetKeyAttrs());
+      index_info->index_->InsertEntry(tuple_tmp, *rid, exec_ctx_->GetTransaction());
+    }
+
     ++updated_;
   }
 
