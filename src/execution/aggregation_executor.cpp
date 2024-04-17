@@ -27,17 +27,38 @@ AggregationExecutor::AggregationExecutor(ExecutorContext *exec_ctx, const Aggreg
 void AggregationExecutor::Init() {}
 
 auto AggregationExecutor::Next(Tuple *tuple, RID *rid) -> bool {
-  if (aggregated_) {
+  if (!aht_.IsEmpty()) {
+    if (aht_iterator_ == aht_.End()) {
+      return false;
+    }
+    std::vector<Value> values;
+    for (auto &v : aht_iterator_.Key().group_bys_) {
+      values.emplace_back(v);
+    }
+    for (auto &v : aht_iterator_.Val().aggregates_) {
+      values.emplace_back(v);
+    }
+    *tuple = Tuple(values, plan_->output_schema_.get());
+    ++aht_iterator_;
+    return true;
+  }
+  while (child_executor_->Next(tuple, rid)) {
+    aht_.InsertCombine(MakeAggregateKey(tuple), MakeAggregateValue(tuple));
+  }
+  aht_iterator_ = aht_.Begin();
+  if (aht_iterator_ == aht_.End()) {
     return false;
   }
-  AggregateValue result = aht_.GenerateInitialAggregateValue();
-  if (plan_->group_bys_.empty()) {
-    while (child_executor_->Next(tuple, rid)) {
-      aht_.CombineAggregateValues(&result, MakeAggregateValue(tuple));
-    }
+  std::vector<Value> values;
+  for (auto &v : aht_iterator_.Key().group_bys_) {
+    values.emplace_back(v);
   }
-  *tuple = Tuple(result.aggregates_, plan_->output_schema_.get());
-  return aggregated_ = true;
+  for (auto &v : aht_iterator_.Val().aggregates_) {
+    values.emplace_back(v);
+  }
+  *tuple = Tuple(values, plan_->output_schema_.get());
+  ++aht_iterator_;
+  return true;
 }
 
 auto AggregationExecutor::GetChildExecutor() const -> const AbstractExecutor * { return child_executor_.get(); }

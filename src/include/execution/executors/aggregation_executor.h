@@ -172,6 +172,8 @@ class SimpleAggregationHashTable {
   /** @return Iterator to the end of the hash table */
   auto End() -> Iterator { return Iterator{ht_.cend()}; }
 
+  auto IsEmpty() -> bool { return ht_.empty(); }
+
  private:
   /** The hash table is just a map from aggregate keys to aggregate values */
   std::unordered_map<AggregateKey, AggregateValue> ht_{};
@@ -246,7 +248,5 @@ class AggregationExecutor : public AbstractExecutor {
   /** Simple aggregation hash table iterator */
   // TODO(Student): Uncomment SimpleAggregationHashTable::Iterator aht_iterator_;
   SimpleAggregationHashTable::Iterator aht_iterator_;
-
-  bool aggregated_{false};
 };
 }  // namespace bustub
