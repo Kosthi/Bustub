@@ -19,7 +19,7 @@ IndexScanExecutor::IndexScanExecutor(ExecutorContext *exec_ctx, const IndexScanP
   index_ = cate_log->GetIndex(plan_->index_oid_)->index_.get();
 }
 
-void IndexScanExecutor::Init() {}
+void IndexScanExecutor::Init() { is_executed_ = false; }
 
 auto IndexScanExecutor::Next(Tuple *tuple, RID *rid) -> bool {
   if (is_executed_) {
@@ -34,8 +34,7 @@ auto IndexScanExecutor::Next(Tuple *tuple, RID *rid) -> bool {
   if (result.size() == 1) {
     *rid = result[0];
     *tuple = table_heap_->GetTuple(*rid).second;
-    is_executed_ = true;
-    return true;
+    return is_executed_ = true;
   }
   return false;
 }

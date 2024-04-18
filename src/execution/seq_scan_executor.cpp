@@ -19,10 +19,10 @@ SeqScanExecutor::SeqScanExecutor(ExecutorContext *exec_ctx, const SeqScanPlanNod
     : AbstractExecutor(exec_ctx), plan_(plan) {
   auto &&catalog = exec_ctx->GetCatalog();
   auto &&table_info = catalog->GetTable(plan_->table_oid_);
-  table_iterator_ = std::make_unique<TableIterator>(table_info->table_->MakeIterator());
+  table_heap_ = table_info->table_.get();
 }
 
-void SeqScanExecutor::Init() {}
+void SeqScanExecutor::Init() { table_iterator_ = std::make_unique<TableIterator>(table_heap_->MakeIterator()); }
 
 auto SeqScanExecutor::Next(Tuple *tuple, RID *rid) -> bool {
   if (table_iterator_->IsEnd()) {
