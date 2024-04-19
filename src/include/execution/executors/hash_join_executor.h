@@ -54,6 +54,17 @@ class HashJoinExecutor : public AbstractExecutor {
  private:
   /** The HashJoin plan node to be executed. */
   const HashJoinPlanNode *plan_;
+  std::unique_ptr<AbstractExecutor> left_child_;
+  std::unique_ptr<AbstractExecutor> right_child_;
+  std::unordered_map<HashJoinKey, std::pair<bool, std::vector<Tuple>>> hash_table_;
+  std::unordered_map<HashJoinKey, std::pair<bool, std::vector<Tuple>>>::iterator it_;
+  Tuple left_tuple_{};
+  Tuple right_tuple_{};
+  // 跟踪左元组或右元组是否被至少join一次
+  bool joined_{false};
+  bool left_joined_{false};
+  std::vector<Tuple> emit_tuples_{};
+  RID rid_{};
 };
 
 }  // namespace bustub
