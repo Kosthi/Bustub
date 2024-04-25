@@ -98,3 +98,52 @@ select sum(v2) over (partition by v1 order by v2), sum(v2) over (order by v2) fr
 600 600
 400 1000
 900 1500
+
+# Create yet another table
+statement ok
+create table t3(v1 int, v2 int);
+
+# Insert something
+query
+insert into t3 values (1, 700), (1, 200), (2, 1000), (1, 400), (2, 20),;
+----
+5
+
+# partition by
+query rowsort
+select count(*) over (partition by v1), min(v2) over (partition by v1), max(v2) over (partition by v1), count(v2) over (partition by v1), sum(v2) over (partition by v1) from t3;
+----
+3 200 700 3 1300
+3 200 700 3 1300
+3 200 700 3 1300
+2 20 1000 2 1020
+2 20 1000 2 1020
+
+# partition by combined with order by
+query rowsort
+select v1, v2, count(*) over (partition by v1 order by v2), min(v2) over (partition by v1 order by v2), max(v2) over (partition by v1 order by v2), count(v2) over (partition by v1 order by v2), sum(v2) over (partition by v1 order by v2) from t3;
+----
+1 200 1 200 200 1 200
+1 400 2 200 400 2 600
+1 700 3 200 700 3 1300
+2 20 1 20 20 1 20
+2 1000 2 20 1000 2 1020
+
+# different window functions should calculate separately
+query rowsort
+select v1, v2, sum(v2) over (partition by v1), sum(v2) over () from t3;
+----
+1 700 1300 2320
+1 200 1300 2320
+1 400 1300 2320
+2 20 1020 2320
+2 1000 1020 2320
+
+query
+select v1, v2, sum(v2) over (), sum(v2) over () from t3;
+----
+1 700 2320 2320
+1 200 2320 2320
+2 1000 2320 2320
+1 400 2320 2320
+2 20 2320 2320
