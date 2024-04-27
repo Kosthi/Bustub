@@ -35,15 +35,12 @@ class IndexScanPlanNode : public AbstractPlanNode {
    * @param pred_key The key for point lookup
    */
   IndexScanPlanNode(SchemaRef output, table_oid_t table_oid, index_oid_t index_oid,
-                    AbstractExpressionRef filter_predicate = nullptr,
-                    std::shared_ptr<const ConstantValueExpression> pred_key = nullptr,
-                    std::shared_ptr<const Schema> key_schema = nullptr)
+                    AbstractExpressionRef filter_predicate = nullptr, ConstantValueExpression *pred_key = nullptr)
       : AbstractPlanNode(std::move(output), {}),
         table_oid_(table_oid),
         index_oid_(index_oid),
         filter_predicate_(std::move(filter_predicate)),
-        pred_key_(std::move(pred_key)),
-        key_schema_(std::move(key_schema)) {}
+        pred_key_(pred_key) {}
 
   auto GetType() const -> PlanType override { return PlanType::IndexScan; }
 
@@ -68,10 +65,10 @@ class IndexScanPlanNode : public AbstractPlanNode {
    * The constant value key to lookup.
    * For example when dealing "WHERE v = 1" we could store the constant value 1 here
    */
-  std::shared_ptr<const ConstantValueExpression> pred_key_;
+  const ConstantValueExpression *pred_key_;
 
+  // 因为头文件不会被导入测试，这里实际上不能加任何元素
   // Add anything you want here for index lookup
-  std::shared_ptr<const Schema> key_schema_;
 
  protected:
   auto PlanNodeToString() const -> std::string override {

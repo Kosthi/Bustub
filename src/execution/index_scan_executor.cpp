@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 #include "execution/executors/index_scan_executor.h"
+#include "execution/expressions/column_value_expression.h"
+#include "execution/expressions/comparison_expression.h"
 
 namespace bustub {
 IndexScanExecutor::IndexScanExecutor(ExecutorContext *exec_ctx, const IndexScanPlanNode *plan)
@@ -17,6 +19,8 @@ IndexScanExecutor::IndexScanExecutor(ExecutorContext *exec_ctx, const IndexScanP
   auto &&cate_log = exec_ctx->GetCatalog();
   table_heap_ = cate_log->GetTable(plan_->table_oid_)->table_.get();
   index_ = cate_log->GetIndex(plan_->index_oid_)->index_.get();
+  // index里已经包含了key_attrs 直接生成键模式
+  key_schema_ = std::make_shared<Schema>(Schema::CopySchema(plan_->output_schema_.get(), index_->GetKeyAttrs()));
 }
 
 void IndexScanExecutor::Init() {}
@@ -28,15 +32,13 @@ auto IndexScanExecutor::Next(Tuple *tuple, RID *rid) -> bool {
 
   std::vector<RID> result;
   std::vector<Value> values;
-  values.emplace_back(plan_->pred_key_->Evaluate(nullptr, GetOutputSchema()));
-  // 键模式只能在算子里面生成？
-  *tuple = Tuple(values, plan_->key_schema_.get());
+  values.emplace_back(plan_->filter_predicate_->GetChildAt(1)->Evaluate(nullptr, GetOutputSchema()));
+  *tuple = Tuple(values, key_schema_.get());
   index_->ScanKey(*tuple, &result, exec_ctx_->GetTransaction());
   if (result.size() == 1) {
     *rid = result[0];
     *tuple = table_heap_->GetTuple(*rid).second;
-    is_executed_ = true;
-    return true;
+    return is_executed_ = true;
   }
   return false;
 }
