@@ -149,6 +149,8 @@ class TransactionManager {
 
   std::atomic<txn_id_t> next_txn_id_{TXN_START_ID};
 
+  int64_t timestamp_{0};
+
  private:
   /** @brief Verify if a txn satisfies serializability. We will not test this function and you can change / remove it as
    * you want. */

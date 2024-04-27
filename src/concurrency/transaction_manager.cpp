@@ -43,7 +43,9 @@ auto TransactionManager::Begin(IsolationLevel isolation_level) -> Transaction * 
   txn_map_.insert(std::make_pair(txn_id, std::move(txn)));
 
   // TODO(fall2023): set the timestamps here. Watermark updated below.
-
+  txn_ref->state_ = TransactionState::RUNNING;
+  // 读取时间戳为最新提交时间戳，使得当前事务能够看到当前之前所有的事务
+  txn_ref->read_ts_.store(last_commit_ts_);
   running_txns_.AddTxn(txn_ref->read_ts_);
   return txn_ref;
 }
@@ -74,6 +76,9 @@ auto TransactionManager::Commit(Transaction *txn) -> bool {
   // TODO(fall2023): set commit timestamp + update last committed timestamp here.
 
   txn->state_ = TransactionState::COMMITTED;
+  // 因为读取时间戳是最新提交时间戳，新的提交时间戳应该+1
+  last_commit_ts_.fetch_add(1);
+  txn->commit_ts_.store(last_commit_ts_);
   running_txns_.UpdateCommitTs(txn->commit_ts_);
   running_txns_.RemoveTxn(txn->read_ts_);
 
@@ -88,6 +93,7 @@ void TransactionManager::Abort(Transaction *txn) {
   // TODO(fall2023): Implement the abort logic!
 
   std::unique_lock<std::shared_mutex> lck(txn_map_mutex_);
+  // 没有提交 提交时间戳不需要更新
   txn->state_ = TransactionState::ABORTED;
   running_txns_.RemoveTxn(txn->read_ts_);
 }
