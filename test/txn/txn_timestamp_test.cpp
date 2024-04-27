@@ -16,7 +16,7 @@
 
 namespace bustub {
 
-TEST(TxnTsTest, DISABLED_WatermarkPerformance) {  // NOLINT
+TEST(TxnTsTest, WatermarkPerformance) {  // NOLINT
   const int txn_n = 1000000;
   {
     auto watermark = Watermark(0);
@@ -48,7 +48,7 @@ TEST(TxnTsTest, DISABLED_WatermarkPerformance) {  // NOLINT
   }
 }
 
-TEST(TxnTsTest, DISABLED_TimestampTracking) {  // NOLINT
+TEST(TxnTsTest, TimestampTracking) {  // NOLINT
   auto bustub = std::make_unique<BustubInstance>();
 
   auto txn0 = bustub->txn_manager_->Begin();
@@ -57,6 +57,7 @@ TEST(TxnTsTest, DISABLED_TimestampTracking) {  // NOLINT
 
   {
     auto txn_store_1 = bustub->txn_manager_->Begin();
+    // txn0 未提交，会有相同的读取时间戳
     ASSERT_EQ(txn_store_1->GetReadTs(), 0);
     bustub->txn_manager_->Commit(txn_store_1);
     ASSERT_EQ(txn_store_1->GetCommitTs(), 1);
@@ -121,6 +122,7 @@ TEST(TxnTsTest, DISABLED_TimestampTracking) {  // NOLINT
   bustub->txn_manager_->Abort(txn3);
   ASSERT_EQ(bustub->txn_manager_->GetWatermark(), 4);
   bustub->txn_manager_->Abort(txn4);
+  // 所有事务运行结束，以最新提交时间戳作为水印
   ASSERT_EQ(bustub->txn_manager_->GetWatermark(), 4);
 
   {
