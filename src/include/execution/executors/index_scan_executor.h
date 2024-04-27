@@ -47,5 +47,7 @@ class IndexScanExecutor : public AbstractExecutor {
   TableHeap *table_heap_;
   Index *index_;
   bool is_executed_{false};
+  std::shared_ptr<const Schema> key_schema_;
+  std::shared_ptr<const ConstantValueExpression> pred_key_;
 };
 }  // namespace bustub
