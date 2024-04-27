@@ -110,15 +110,6 @@ struct AggregateKey {
     }
     return true;
   }
-
-  auto operator<(const AggregateKey &other) const -> bool {
-    for (uint32_t i = 0; i < other.group_bys_.size(); i++) {
-      if (group_bys_[i].CompareEquals(other.group_bys_[i]) != CmpBool::CmpTrue) {
-        return group_bys_[i].CompareLessThan(other.group_bys_[i]) == CmpBool::CmpTrue;
-      }
-    }
-    return false;
-  }
 };
 
 /** AggregateValue represents a value for each of the running aggregates */

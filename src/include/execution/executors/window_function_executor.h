@@ -87,6 +87,18 @@ class WindowFunctionExecutor : public AbstractExecutor {
   auto GetOutputSchema() const -> const Schema & override { return plan_->OutputSchema(); }
 
  private:
+  // for std::map
+  struct Compare {
+    auto operator()(const AggregateKey &a, const AggregateKey &b) const -> bool {
+      for (uint32_t i = 0; i < b.group_bys_.size(); i++) {
+        if (a.group_bys_[i].CompareEquals(b.group_bys_[i]) != CmpBool::CmpTrue) {
+          return a.group_bys_[i].CompareLessThan(b.group_bys_[i]) == CmpBool::CmpTrue;
+        }
+      }
+      return false;
+    }
+  };
+
   /**
    * A simplified hash table that has all the necessary functionality for aggregations.
    */
@@ -247,7 +259,7 @@ class WindowFunctionExecutor : public AbstractExecutor {
 
    private:
     /** The hash table is just a map from aggregate keys to aggregate values */
-    std::map<AggregateKey, AggregateValue> ht_;
+    std::map<AggregateKey, AggregateValue, Compare> ht_;
     std::unordered_map<AggregateKey, uint64_t> cnt_table_;
     /** The aggregate expressions that we have */
     std::vector<AbstractExpressionRef> agg_exprs_;

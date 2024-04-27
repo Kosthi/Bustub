@@ -15,10 +15,49 @@
 #include <memory>
 #include <utility>
 
+#include "common/util/hash_util.h"
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/hash_join_plan.h"
 #include "storage/table/tuple.h"
+
+namespace bustub {
+/** AggregateKey represents a key in an aggregation operation */
+struct HashJoinKey {
+  /** The group-by values */
+  std::vector<Value> left_keys_;
+
+  /**
+   * Compares two aggregate keys for equality.
+   * @param other the other aggregate key to be compared with
+   * @return `true` if both aggregate keys have equivalent group-by expressions, `false` otherwise
+   */
+  auto operator==(const HashJoinKey &other) const -> bool {
+    for (uint32_t i = 0; i < other.left_keys_.size(); i++) {
+      if (left_keys_[i].CompareEquals(other.left_keys_[i]) != CmpBool::CmpTrue) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+}  // namespace bustub
+
+namespace std {
+/** Implements std::hash on HashJoinKey */
+template <>
+struct std::hash<bustub::HashJoinKey> {
+  auto operator()(const bustub::HashJoinKey &hash_join_key) const -> std::size_t {
+    size_t curr_hash = 0;
+    for (const auto &key : hash_join_key.left_keys_) {
+      if (!key.IsNull()) {
+        curr_hash = bustub::HashUtil::CombineHashes(curr_hash, bustub::HashUtil::HashValue(&key));
+      }
+    }
+    return curr_hash;
+  }
+};
+}  // namespace std
 
 namespace bustub {
 
