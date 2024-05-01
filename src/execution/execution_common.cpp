@@ -12,7 +12,39 @@ namespace bustub {
 
 auto ReconstructTuple(const Schema *schema, const Tuple &base_tuple, const TupleMeta &base_meta,
                       const std::vector<UndoLog> &undo_logs) -> std::optional<Tuple> {
-  UNIMPLEMENTED("not implemented");
+  // 设计的想法：unlog中直接存储对tuple的快照，这样就可以直接赋值
+  // 为了省出空间，目前的设计tuple只存储了部分，这样只能采取逐级回滚的方法
+  auto target_meta = base_meta;
+
+  std::vector<Value> values;
+  std::vector<uint32_t> attrs;
+
+  for (std::size_t i = 0; i < schema->GetColumnCount(); ++i) {
+    values.emplace_back(base_tuple.GetValue(schema, i));
+  }
+
+  for (const auto &undo_log : undo_logs) {
+    target_meta.ts_ = undo_log.ts_;
+    if (undo_log.is_deleted_) {
+      target_meta.is_deleted_ = true;
+    } else {
+      attrs.clear();
+      target_meta.is_deleted_ = false;
+      for (std::size_t i = 0; i < undo_log.modified_fields_.size(); ++i) {
+        if (undo_log.modified_fields_[i]) {
+          attrs.emplace_back(i);
+        }
+      }
+      auto &&key_schema = Schema::CopySchema(schema, attrs);
+      for (std::size_t i = 0, j = 0; i < undo_log.modified_fields_.size(); ++i) {
+        if (undo_log.modified_fields_[i]) {
+          values[i] = undo_log.tuple_.GetValue(&key_schema, j++);
+        }
+      }
+    }
+  }
+
+  return target_meta.is_deleted_ ? std::nullopt : std::optional<Tuple>({values, schema});
 }
 
 void TxnMgrDbg(const std::string &info, TransactionManager *txn_mgr, const TableInfo *table_info,
