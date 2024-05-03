@@ -5,7 +5,7 @@ namespace bustub {
 
 // NOLINTBEGIN(bugprone-unchecked-optional-access)
 
-TEST(TxnScanTest, DISABLED_TupleReconstructTest) {  // NOLINT
+TEST(TxnScanTest, TupleReconstructTest) {  // NOLINT
   auto schema = ParseCreateStatement("a integer,b double,c boolean");
   {
     fmt::println(stderr, "A: only base tuple");
@@ -103,7 +103,7 @@ TEST(TxnScanTest, DISABLED_TupleReconstructTest) {  // NOLINT
   }
 }
 
-TEST(TxnScanTest, DISABLED_ScanTest) {  // NOLINT
+TEST(TxnScanTest, ScanTest) {  // NOLINT
   auto bustub = std::make_unique<BustubInstance>();
   auto schema = ParseCreateStatement("a integer,b double,c boolean");
   auto modify_schema = ParseCreateStatement("a integer");
@@ -137,6 +137,7 @@ TEST(TxnScanTest, DISABLED_ScanTest) {  // NOLINT
   {
     auto txn_store_2 = bustub->txn_manager_->Begin();
     ASSERT_EQ(txn_store_2->GetReadTs(), 1);
+    // 对应record2
     prev_log_3 = txn_store_2->AppendUndoLog(
         UndoLog{false, {true, true, true}, Tuple{{Int(4), Double(4), Bool(true)}, schema.get()}, 1, {}});
     prev_log_6 =
@@ -151,6 +152,7 @@ TEST(TxnScanTest, DISABLED_ScanTest) {  // NOLINT
   {
     auto txn_store_3 = bustub->txn_manager_->Begin();
     ASSERT_EQ(txn_store_3->GetReadTs(), 2);
+    // 对应record2 从记录被删除到插入新值val3
     prev_log_2 =
         txn_store_3->AppendUndoLog(UndoLog{true, {false, false, false}, Tuple{{}, empty_schema.get()}, 2, prev_log_3});
     bustub->txn_manager_->Commit(txn_store_3);
@@ -166,6 +168,7 @@ TEST(TxnScanTest, DISABLED_ScanTest) {  // NOLINT
   {
     auto txn_store_4 = bustub->txn_manager_->Begin();
     ASSERT_EQ(txn_store_4->GetReadTs(), 3);
+    // 对应record3
     prev_log_4 = txn_store_4->AppendUndoLog(
         UndoLog{false, {true, true, true}, Tuple{{Int(5), Double(3), Bool(false)}, schema.get()}, 3, {}});
     bustub->txn_manager_->Commit(txn_store_4);
@@ -184,6 +187,7 @@ TEST(TxnScanTest, DISABLED_ScanTest) {  // NOLINT
   auto txn5 = bustub->txn_manager_->Begin();
   ASSERT_EQ(txn5->GetReadTs(), 5);
 
+  // 对应record1 val2 被修改为 val1
   prev_log_1 = txn4->AppendUndoLog(UndoLog{false, {true, false, false}, Tuple{{Int(2)}, modify_schema.get()}, 1, {}});
 
   auto rid1 = *table_info->table_->InsertTuple(TupleMeta{txn4->GetTransactionTempTs(), false},
@@ -198,6 +202,12 @@ TEST(TxnScanTest, DISABLED_ScanTest) {  // NOLINT
   auto rid4 = *table_info->table_->InsertTuple(TupleMeta{txn3->GetTransactionTempTs(), true},
                                                Tuple{{IntNull(), DoubleNull(), BoolNull()}, schema.get()});
   bustub->txn_manager_->UpdateVersionLink(rid4, VersionUndoLink{prev_log_5}, nullptr);
+
+  // 只看时间戳 不看是否提交
+  // record1: txn4 (val=1) -> ts=1 in txn4 (val=2/prev_log_1)
+  // record2: ts=3 (val=3) -> ts=2 in txn_store_3 (delete/prev_log_2) -> ts=1 in txn_store_2 (val=4/prev_log_3)
+  // record3: ts=4 (delete) -> ts=3 in txn_store_4 (val=5/prev_log_4)
+  // record4: txn3 (delete) -> ts=2 in txn3 (val=6/prev_log_5) -> ts=1 in txn_store_2 (val=7/prev_log_6)
 
   TxnMgrDbg("before verify scan", bustub->txn_manager_.get(), table_info, table_info->table_.get());
 
@@ -219,15 +229,20 @@ TEST(TxnScanTest, DISABLED_ScanTest) {  // NOLINT
   // you should think about types other than integer, and think of the case where the user updates / inserts
   // a column of null.
 
-  // query = "SELECT a FROM maintable";
-  // fmt::println(stderr, "C: Verify txn2");
-  // WithTxn(txn2, QueryHideResult(*bustub, _var, _txn, query, IntResult{})); // <- you will need to fill in the answer
-  // fmt::println(stderr, "D: Verify txn3");
-  // WithTxn(txn3, QueryHideResult(*bustub, _var, _txn, query, IntResult{})); // <- you will need to fill in the answer
-  // fmt::println(stderr, "E: Verify txn4");
-  // WithTxn(txn4, QueryHideResult(*bustub, _var, _txn, query, IntResult{})); // <- you will need to fill in the answer
-  // fmt::println(stderr, "F: Verify txn5");
-  // WithTxn(txn5, QueryHideResult(*bustub, _var, _txn, query, IntResult{})); // <- you will need to fill in the answer
+  query = "SELECT a FROM maintable";
+  fmt::println(stderr, "C: Verify txn2");
+  WithTxn(txn2,
+          QueryHideResult(*bustub, _var, _txn, query, IntResult{{2}, {6}}));  // <- you will need to fill in the answer
+  fmt::println(stderr, "D: Verify txn3");
+  WithTxn(txn3, QueryHideResult(*bustub, _var, _txn, query,
+                                IntResult{{2}, {3}, {5}}));  // <- you will need to fill in the answer
+  // 对于未提交的事务，可能存在回滚，为了避免级联回滚，只能回溯版本号，找到已经提交修改的事务，记在undolog中的一定是提交了的？
+  fmt::println(stderr, "E: Verify txn4");
+  WithTxn(txn4, QueryHideResult(*bustub, _var, _txn, query,
+                                IntResult{{1}, {3}, {6}}));  // <- you will need to fill in the answer
+  fmt::println(stderr, "F: Verify txn5");
+  WithTxn(txn5, QueryHideResult(*bustub, _var, _txn, query,
+                                IntResult{{2}, {3}, {6}}));  // <- you will need to fill in the answer
 }
 
 // NOLINTEND(bugprone-unchecked-optional-access))
