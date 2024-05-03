@@ -61,6 +61,8 @@ class InsertExecutor : public AbstractExecutor {
   TableHeap *table_heap_;
   std::vector<IndexInfo *> index_info_;
   int inserted_{0};
+  Transaction *txn_;
+  TransactionManager *txn_manager_;
 };
 
 }  // namespace bustub

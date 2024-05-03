@@ -75,8 +75,23 @@ auto TransactionManager::Commit(Transaction *txn) -> bool {
 
   // TODO(fall2023): set commit timestamp + update last committed timestamp here.
 
+  // 获取提交时间戳 注意还不能增加 因为还不稳定
+  auto &&commit_ts = last_commit_ts_.load() + 1;
+  // 为所有元组时间戳设置为提交时间戳
+  for (auto &[table_oid, rids] : txn->GetWriteSets()) {
+    auto &&table_heap = catalog_->GetTable(table_oid)->table_;
+    for (auto &rid : rids) {
+      auto &&tuple_meta = table_heap->GetTupleMeta(rid);
+      tuple_meta.ts_ = commit_ts;
+      table_heap->UpdateTupleMeta(tuple_meta, rid);
+    }
+  }
+
+  // 事务设置为已提交状态
   txn->state_ = TransactionState::COMMITTED;
-  // 因为读取时间戳是最新提交时间戳，新的提交时间戳应该+1
+
+  // 更新last_commit_ts_
+  // 因为读取时间戳是最新提交时间戳，新的提交时间戳应该+1 提交时间戳一定是最新的
   last_commit_ts_.fetch_add(1);
   txn->commit_ts_.store(last_commit_ts_);
   running_txns_.UpdateCommitTs(txn->commit_ts_);
