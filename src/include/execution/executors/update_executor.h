@@ -68,5 +68,7 @@ class UpdateExecutor : public AbstractExecutor {
   std::unique_ptr<AbstractExecutor> child_executor_;
   std::vector<IndexInfo *> index_info_;
   int updated_{0};
+  Transaction *txn_;
+  TransactionManager *txn_manager_;
 };
 }  // namespace bustub
