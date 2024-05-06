@@ -43,9 +43,14 @@ auto SeqScanExecutor::Next(Tuple *tuple, RID *rid) -> bool {
       std::vector<UndoLog> undo_logs;
       auto &&undo_link = txn_manager_->GetUndoLink(to_tuple.GetRid());
 
+      // 情况1 undo1 undo2 | undo3  应该执行到undo2 事务可以看到undo3之后的记录 该元组不能跳过
+      // 情况2 undo1 undo2 |        最早的时间戳大于当前事务读取时间戳 事务不可能看到 该元组跳过
+      // 情况3 undo1 undo2|         应该执行到undo2 且时间戳恰好为当前事务读取时间戳 事务可以看到 该元组不能跳过
+      bool is_early_break = false;
       while (undo_link.has_value() && undo_link->IsValid()) {
         auto &&undo_log = txn_manager_->GetUndoLog(*undo_link);
         if (!undo_logs.empty() && undo_log.ts_ < txn_->GetReadTs()) {
+          is_early_break = true;
           break;
         }
         undo_logs.emplace_back(std::move(undo_log));
@@ -53,7 +58,7 @@ auto SeqScanExecutor::Next(Tuple *tuple, RID *rid) -> bool {
       }
 
       // 最早的时间戳也大于当前事务读取时间戳，当前事务不可能看到 直接跳过
-      if (!undo_logs.empty() && undo_logs.back().ts_ > txn_->GetReadTs()) {
+      if (!is_early_break && !undo_logs.empty() && undo_logs.back().ts_ > txn_->GetReadTs()) {
         ++it;
         continue;
       }
