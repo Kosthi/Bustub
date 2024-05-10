@@ -39,10 +39,15 @@ auto InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
     // MVCC 临时时间戳并放入写集
     *rid = *table_heap_->InsertTuple({txn_->GetTransactionTempTs(), false}, *tuple);
 
-    UndoLog undo_log;
-    undo_log.ts_ = txn_->GetReadTs();
-    undo_log.is_deleted_ = true;
-    UndoLink undo_link = txn_->AppendUndoLog(undo_log);
+    // 1.1
+    // 如果是当前事务首次插入元组，不生成undoLog，扫描时因为不存在undoLog而跳过该元组，实现了与meta.delete设置为true（undoLog）一致的效果
+    // 1.2 如果当前事务提交了，之前事务看不到，之后的事务能看到，相同读取时间戳的事务需要undo，结果log为空而跳过
+    // 不需要生成undoLog，但是需要生成一个undoLink节点，表示有undoInsert的信息，特判log_idx=-1来找到
+    // UndoLog undo_log;
+    // undo_log.ts_ = txn_->GetReadTs();
+    // undo_log.is_deleted_ = true;
+    // 用log_idx=-1来标记是否是插入的撤销日志，此时txn为读取时间戳+1
+    UndoLink undo_link = {txn_->GetReadTs() + 1, -1};
     txn_manager_->UpdateUndoLink(*rid, undo_link, nullptr);
 
     txn_->AppendWriteSet(plan_->table_oid_, *rid);

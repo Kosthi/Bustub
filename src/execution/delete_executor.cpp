@@ -36,8 +36,27 @@ auto DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
   }
 
   while (child_executor_->Next(tuple, rid)) {
+    ++deleted_;
+
     // 获取元组元信息
     auto &&tuple_meta = table_heap_->GetTupleMeta(*rid);
+
+    // 1.欲删除的元组是之前的事务insert或update的，此时meta.ts不等于事务id，需要生成且仅一次undoLog
+    // 2.欲删除的元组是当前事务insert或update的，此时meta.ts等于事务id，不需要生成undoLog，直接更新表堆，并且当前元组一定也没有undoLog
+    // 3.欲删除的元组是之后事务insert或update的，根本不可能看到，不考虑
+    if (tuple_meta.ts_ == txn_->GetTransactionTempTs()) {
+      // 逻辑删除
+      tuple_meta.is_deleted_ = true;
+      table_heap_->UpdateTupleMeta(tuple_meta, *rid);
+      // 删除索引
+      for (auto &index_info : index_info_) {
+        // 单键索引
+        auto &&tuple_tmp = tuple->KeyFromTuple(child_executor_->GetOutputSchema(), index_info->key_schema_,
+                                               index_info->index_->GetKeyAttrs());
+        index_info->index_->DeleteEntry(tuple_tmp, *rid, exec_ctx_->GetTransaction());
+      }
+      continue;
+    }
 
     // 检查写入冲突...
     // 1.如果一个未提交的旧事务对某元组进行了写操作 当新事务想要进行写操作时 应该检测到冲突 新事务不能再进行
@@ -49,22 +68,22 @@ auto DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
       throw ExecutionException("transaction is in tainted state.");
     }
 
-    // undo删除 因为是逻辑删除只需要改标志位
+    // undo删除 因为是逻辑删除只需要改标志位 删除之后当前事务不可能修改该元组，所以会正确undo
     UndoLog undo_log;
     undo_log.ts_ = txn_->GetReadTs();
     undo_log.is_deleted_ = false;
 
     // 如果前面已经有undo节点，更新prev_version_
+    // 为insert的无效link或为update，都得接上
     if (auto &&undo_link = txn_manager_->GetUndoLink(*rid); undo_link.has_value()) {
       undo_log.prev_version_ = undo_link.value();
     }
 
     // 得到undo链表节点并更新作为新的版本链表头
     UndoLink cur_undo_link = txn_->AppendUndoLog(undo_log);
-    if (txn_manager_->UpdateUndoLink(*rid, cur_undo_link, nullptr)) {
-      // 放入事务写集中，事务commit时统一修改元组时间戳为提交时间戳
-      txn_->AppendWriteSet(plan_->table_oid_, *rid);
-    }
+    assert(txn_manager_->UpdateUndoLink(*rid, cur_undo_link, nullptr));
+    // 放入事务写集中，事务commit时统一修改元组时间戳为提交时间戳
+    txn_->AppendWriteSet(plan_->table_oid_, *rid);
 
     // 逻辑删除
     tuple_meta.ts_ = txn_->GetTransactionTempTs();
@@ -78,8 +97,6 @@ auto DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
                                              index_info->index_->GetKeyAttrs());
       index_info->index_->DeleteEntry(tuple_tmp, *rid, exec_ctx_->GetTransaction());
     }
-
-    ++deleted_;
   }
 
   std::vector<Value> value;
